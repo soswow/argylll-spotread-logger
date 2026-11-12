@@ -9,7 +9,40 @@ from spotread_logger.measurement_mode import (
     with_optional_skip_calibration,
 )
 from spotread_logger.models import SpotReading
-from spotread_logger.session import SpotreadSessionOptions, run_spotread_session
+from spotread_logger.session import (
+    ABORTED_READING_STATUS,
+    SpotreadSessionOptions,
+    run_spotread_session,
+)
+
+_EXCERPT_LIMIT = 160
+
+
+def measurement_failure(reading: SpotReading) -> str | None:
+    """Why this reply is not a sample, or None when it has one.
+
+    spotread can return to its prompt after an error and leave no spectrum,
+    Lab, or density. That reply is still a parse, but it is not a measurement.
+    """
+    if len(reading.spectrum_values) > 0:
+        return None
+    if reading.lab_l is not None or reading.xyz_y is not None:
+        return None
+    if reading.ambient_lux is not None or reading.density_iso_vis is not None:
+        return None
+    excerpt = _reply_excerpt(reading.raw_reading)
+    if excerpt == "" and len(reading.notes) > 0:
+        excerpt = reading.notes[0]
+    if excerpt == "":
+        return "spotread returned no measurement"
+    return f"spotread returned no measurement: {excerpt}"
+
+
+def _reply_excerpt(raw_reading: str) -> str:
+    collapsed = " ".join(raw_reading.split())
+    if len(collapsed) <= _EXCERPT_LIMIT:
+        return collapsed
+    return f"{collapsed[: _EXCERPT_LIMIT - 3]}..."
 
 
 def _describe_reading(reading: SpotReading) -> str:
@@ -151,16 +184,26 @@ def run(argv: list[str]) -> None:
 
         def on_reading(reading: SpotReading) -> None:
             append_reading(args.output, reading)
-            print(f"{reading.timestamp}  {_describe_reading(reading)}  -> {args.output}")
+            failure = measurement_failure(reading)
+            if failure is None:
+                print(f"{reading.timestamp}  {_describe_reading(reading)}  -> {args.output}")
+                if dashboard is not None:
+                    dashboard.publish_reading(reading)
+                return
+            print(f"{reading.timestamp}  {failure}  -> {args.output}")
             if dashboard is not None:
-                dashboard.publish_reading(reading)
+                dashboard.publish_error(failure)
 
         def on_status(message: str) -> None:
             print(message)
             # "stopping spotread" runs inside the Ctrl-C handler. Leave the server
             # loop alone from there; the page closes as this process exits.
-            if dashboard is not None and message != "stopping spotread":
-                dashboard.publish_status(message)
+            if dashboard is None or message == "stopping spotread":
+                return
+            if message == ABORTED_READING_STATUS:
+                dashboard.publish_error(message)
+                return
+            dashboard.publish_status(message)
 
         run_spotread_session(
             SpotreadSessionOptions(

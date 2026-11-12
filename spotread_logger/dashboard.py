@@ -126,6 +126,7 @@ class DashboardState:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._output_path = output_path
         self._detail = WAITING_DETAIL
+        self._error: str | None = None
         self._reading: dict[str, object] | None = None
         self.listeners: set[Listener] = set()
 
@@ -136,18 +137,34 @@ class DashboardState:
         payload = reading_payload(reading)
         with self._lock:
             self._reading = payload
-        self._submit({"type": "reading", "reading": payload})
+            self._error = None
+        self._submit({"type": "reading", "reading": payload, "error": None})
 
     def publish_status(self, detail: str) -> None:
         with self._lock:
             self._detail = detail
-        self._submit({"type": "status", "detail": detail})
+            error = self._error
+        self._submit({"type": "status", "detail": detail, "error": error})
+
+    def publish_error(self, detail: str) -> None:
+        """Report a failed sample only while the page is still waiting.
+
+        A later failure leaves the last reading in place. The status line stays
+        on the countdown, and the age keeps moving, until the next sample.
+        """
+        with self._lock:
+            if self._reading is not None or self._error == detail:
+                return
+            self._error = detail
+            status_detail = self._detail
+        self._submit({"type": "status", "detail": status_detail, "error": detail})
 
     def snapshot(self) -> dict[str, object]:
         with self._lock:
             return {
                 "type": "snapshot",
                 "detail": self._detail,
+                "error": self._error,
                 "output": self._output_path,
                 "reading": self._reading,
             }
@@ -269,6 +286,9 @@ class Dashboard:
 
     def publish_status(self, detail: str) -> None:
         self._state.publish_status(detail)
+
+    def publish_error(self, detail: str) -> None:
+        self._state.publish_error(detail)
 
     def start(self) -> None:
         """Listen before returning, so a taken port is reported before measuring."""

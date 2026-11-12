@@ -7,6 +7,7 @@ import aiohttp
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
+from spotread_logger.cli import measurement_failure
 from spotread_logger.dashboard import (
     WAITING_DETAIL,
     Dashboard,
@@ -86,9 +87,13 @@ async def _latest_reading_over_websocket() -> None:
         assert snapshot == {
             "type": "snapshot",
             "detail": WAITING_DETAIL,
+            "error": None,
             "output": "readings.csv",
             "reading": None,
         }
+        state.publish_error("spotread returned no measurement")
+        waiting_failure = await socket.receive_json()
+        assert waiting_failure["error"] == "spotread returned no measurement"
         first = _reading(WARM_READING, "ambient")
         second = replace(first, ambient_lux=42.5, timestamp="2026-11-12T06:05:00.000Z")
         state.publish_reading(first)
@@ -107,9 +112,19 @@ async def _latest_reading_over_websocket() -> None:
         assert replay["reading"]["illuminant"]["lux"] == 42.5
         assert "readings" not in replay
 
+        state.publish_error("spotread aborted a reading; retrying")
         state.publish_status("next reading in 30s")
-        assert (await socket.receive_json())["detail"] == "next reading in 30s"
-        assert (await again.receive_json())["detail"] == "next reading in 30s"
+        kept = await socket.receive_json()
+        assert kept["detail"] == "next reading in 30s"
+        assert kept["error"] is None
+        kept_again = await again.receive_json()
+        assert kept_again["detail"] == "next reading in 30s"
+        assert kept_again["error"] is None
+        held = await client.ws_connect("/ws")
+        held_snapshot = await held.receive_json()
+        assert held_snapshot["reading"]["illuminant"]["lux"] == 42.5
+        assert held_snapshot["error"] is None
+        await held.close()
         await socket.close()
         await again.close()
     finally:
@@ -157,3 +172,23 @@ def test_a_taken_port_is_reported_before_the_server_runs() -> None:
     finally:
         dashboard.close()
         holder.close()
+
+
+def test_a_reply_without_a_sample_is_a_failure_and_a_real_reading_is_not() -> None:
+    blank = _reading("  \n", "reflectance")
+    assert measurement_failure(blank) == "spotread returned no measurement"
+    told = _reading("Measurement failed: instrument not in contact", "reflectance")
+    assert measurement_failure(told) == (
+        "spotread returned no measurement: Measurement failed: instrument not in contact"
+    )
+    noted = replace(blank, notes=["spectrum value count 0 does not match reported steps 106"])
+    assert measurement_failure(noted) == (
+        "spotread returned no measurement: "
+        "spectrum value count 0 does not match reported steps 106"
+    )
+    long_reading = _reading("x" * 200, "reflectance")
+    failure = measurement_failure(long_reading)
+    assert failure is not None
+    assert failure.endswith("...")
+    assert len(failure) == len("spotread returned no measurement: ") + 160
+    assert measurement_failure(_reading(WARM_READING, "ambient")) is None

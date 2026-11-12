@@ -67,6 +67,16 @@ h1 {
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #e6ac65; flex: none; }
 .live .dot { background: #74d5ad; }
 .offline .dot { background: #ee8181; }
+.problem {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #3a2426;
+  border: 1px solid #6b3034;
+  color: #ffd0d0;
+  font-size: 14px;
+  line-height: 1.45;
+}
 #measured-at { color: #d7e6e1; }
 #saving { overflow-wrap: anywhere; }
 .chart {
@@ -100,43 +110,114 @@ canvas { width: 100%; height: 100%; display: block; }
 .metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 8px;
   align-items: start;
 }
 .metrics:empty { display: none; }
 article {
   background: #182326;
   border: 1px solid #2c3b3c;
-  border-radius: 16px;
-  padding: 16px 18px 18px;
+  border-radius: 14px;
+  padding: 10px 12px 11px;
   min-width: 0;
+  container-type: inline-size;
 }
+article.span-2 { grid-column: span 2; }
+article.span-all { grid-column: 1 / -1; }
 article h2 {
-  margin: 0 0 12px;
-  font-size: 13px;
+  margin: 0 0 6px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: #a7bcb5;
 }
-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px 16px; margin: 0; }
-.stack dl { grid-template-columns: 1fr; }
-.dense dl { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); }
-dl div { min-width: 0; }
-dt { color: #91a8a0; font-size: 12px; }
-dd {
-  margin: 3px 0 0;
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px 14px; margin: 0; }
+dl.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+dl.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+dl.wrap { display: flex; flex-wrap: wrap; gap: 2px 18px; }
+dl div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
-.notes { margin: 0; padding-left: 18px; color: #d7e4df; }
-.notes li + li { margin-top: 6px; }
+dl div.wide { grid-column: 1 / -1; }
+dl.cols-2 div:not(.wide),
+dl.cols-3 div:not(.wide) { white-space: nowrap; }
+dl.wrap div { flex: none; justify-content: flex-start; gap: 6px; }
+dt { color: #91a8a0; font-size: 12px; line-height: 1.35; }
+dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+}
+dl.wrap dd { flex: none; text-align: left; }
+dl.dense {
+  display: grid;
+  grid-template-columns: repeat(var(--dense-columns, 8), minmax(0, 1fr));
+  gap: 4px 8px;
+}
+dl.dense div { display: block; white-space: nowrap; }
+dl.dense dt { font-size: 11px; }
+dl.dense dd { text-align: left; margin-top: 1px; }
+.matrix-scroll { overflow-x: auto; }
+dl + .matrix-scroll { margin-top: 8px; }
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.matrix th,
+.matrix td {
+  text-align: right;
+  padding: 2px 0 2px 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.matrix thead th {
+  color: #91a8a0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-bottom: 4px;
+}
+.matrix tbody th {
+  text-align: left;
+  color: #91a8a0;
+  font-size: 12px;
+  font-weight: 500;
+  padding-left: 0;
+  width: 1%;
+}
+.matrix tbody tr + tr th,
+.matrix tbody tr + tr td { border-top: 1px solid rgba(237, 246, 243, 0.06); }
+.notes { margin: 0; padding-left: 16px; color: #d7e4df; font-size: 13px; }
+.notes li + li { margin-top: 4px; }
+@container (max-width: 300px) {
+  dl.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 780px) {
+  dl.dense { grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); }
+}
+@container (max-width: 420px) {
+  .matrix { font-size: 12px; }
+  .matrix th,
+  .matrix td { padding-left: 10px; }
+}
 @media (max-width: 700px) {
   main { padding: 16px 12px 32px; }
   header { flex-direction: column; align-items: flex-start; }
   .meta { justify-items: start; text-align: left; max-width: none; }
   .plot { height: 52vh; min-height: 260px; }
+}
+@media (max-width: 640px) {
+  article.span-2 { grid-column: 1 / -1; }
 }
 </style>
 </head>
@@ -159,6 +240,7 @@ dd {
       <div id="saving" hidden></div>
     </div>
   </header>
+  <p class="problem" id="problem" role="alert" hidden></p>
   <section class="chart" aria-labelledby="spectrum-title">
     <div class="chart-head">
       <h2 id="spectrum-title">Spectrum</h2>
@@ -196,6 +278,7 @@ const xyzD65ToLinearSrgb = [
 
 let reading = null;
 let detail = "Waiting for a measurement";
+let problemText = "";
 let outputPath = "";
 let connection = "connecting";
 let socket = null;
@@ -782,15 +865,35 @@ const renderStatus = () => {
   if (connection === "connecting") {
     status.className = "status waiting";
     statusText.textContent = "Connecting…";
+    renderProblem();
     return;
   }
   if (connection === "closed") {
     status.className = "status offline";
     statusText.textContent = "Page disconnected. Reconnecting…";
+    renderProblem();
+    return;
+  }
+  if (problemText !== "") {
+    status.className = "status offline";
+    statusText.textContent = "Reading failed";
+    renderProblem();
     return;
   }
   status.className = reading ? "status live" : "status waiting";
   statusText.textContent = detail || "Waiting for a measurement";
+  renderProblem();
+};
+
+const renderProblem = () => {
+  const problem = element("problem");
+  if (problemText === "") {
+    problem.hidden = true;
+    problem.textContent = "";
+    return;
+  }
+  problem.hidden = false;
+  problem.textContent = `${problemText}.`;
 };
 
 const renderSaving = () => {
@@ -804,41 +907,34 @@ const renderSaving = () => {
   saving.textContent = `Saving ${outputPath}`;
 };
 
-const addNumber = (fields, label, value, suffix) => {
+const addNumber = (fields, label, value, suffix, wide) => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return;
   }
   const text = suffix ? `${formatNumber(value)} ${suffix}` : formatNumber(value);
-  fields.push([label, text]);
+  fields.push([label, text, Boolean(wide)]);
 };
 
-const addText = (fields, label, value) => {
+const addText = (fields, label, value, wide) => {
   if (typeof value !== "string" || value.trim() === "") {
     return;
   }
-  fields.push([label, value]);
+  fields.push([label, value, Boolean(wide)]);
 };
 
-const appendCard = (title, fields, stacked, dense) => {
-  if (fields.length === 0) {
-    return;
-  }
-  const card = document.createElement("article");
-  const classes = [];
-  if (stacked) {
-    classes.push("stack");
-  }
-  if (dense) {
-    classes.push("dense");
-  }
-  if (classes.length > 0) {
-    card.className = classes.join(" ");
-  }
-  const heading = document.createElement("h2");
-  heading.textContent = title;
+const buildList = (fields, layout) => {
   const list = document.createElement("dl");
-  fields.forEach(([label, text]) => {
+  if (layout) {
+    list.className = layout;
+  }
+  if (layout === "dense") {
+    list.style.setProperty("--dense-columns", String(Math.max(fields.length, 1)));
+  }
+  fields.forEach(([label, text, wide]) => {
     const row = document.createElement("div");
+    if (wide) {
+      row.className = "wide";
+    }
     const term = document.createElement("dt");
     term.textContent = label;
     const description = document.createElement("dd");
@@ -846,7 +942,22 @@ const appendCard = (title, fields, stacked, dense) => {
     row.append(term, description);
     list.append(row);
   });
-  card.append(heading, list);
+  return list;
+};
+
+const appendCard = (title, fields, options = {}) => {
+  if (fields.length === 0) {
+    return;
+  }
+  const card = document.createElement("article");
+  if (options.span === 2) {
+    card.className = "span-2";
+  } else if (options.span === "all") {
+    card.className = "span-all";
+  }
+  const heading = document.createElement("h2");
+  heading.textContent = title;
+  card.append(heading, buildList(fields, options.layout));
   element("metrics").append(card);
 };
 
@@ -854,9 +965,6 @@ const appendNotes = (notes) => {
   if (!Array.isArray(notes) || notes.length === 0) {
     return;
   }
-  const card = document.createElement("article");
-  const heading = document.createElement("h2");
-  heading.textContent = "Notes";
   const list = document.createElement("ul");
   list.className = "notes";
   notes.forEach((note) => {
@@ -870,7 +978,92 @@ const appendNotes = (notes) => {
   if (list.childElementCount === 0) {
     return;
   }
+  const card = document.createElement("article");
+  const heading = document.createElement("h2");
+  heading.textContent = "Notes";
   card.append(heading, list);
+  element("metrics").append(card);
+};
+
+const densityChannelIsPresent = (value) => {
+  return typeof value === "number" && Number.isFinite(value);
+};
+
+// Status CMYV is one row per status. Listing every channel as its own field made this card much taller than the rest.
+const appendDensity = (density) => {
+  if (!density) {
+    return;
+  }
+  const scalars = [];
+  addNumber(scalars, "ISO visual", density.iso_vis);
+  addNumber(scalars, "Type 1", density.type_1);
+  addNumber(scalars, "Type 2", density.type_2);
+  const statuses = [
+    ["Status A", density.status_a],
+    ["Status M", density.status_m],
+    ["Status T", density.status_t],
+    ["Status E", density.status_e],
+  ].filter(([, status]) => {
+    if (!status) {
+      return false;
+    }
+    return ["cyan", "magenta", "yellow", "visual"].some((channel) => {
+      return densityChannelIsPresent(status[channel]);
+    });
+  });
+  if (scalars.length === 0 && statuses.length === 0) {
+    return;
+  }
+  const card = document.createElement("article");
+  card.className = "span-2";
+  const heading = document.createElement("h2");
+  heading.textContent = "Density";
+  card.append(heading);
+  if (scalars.length > 0) {
+    card.append(buildList(scalars, "wrap"));
+  }
+  if (statuses.length > 0) {
+    const channels = [
+      ["C", "Cyan", "cyan"],
+      ["M", "Magenta", "magenta"],
+      ["Y", "Yellow", "yellow"],
+      ["V", "Visual", "visual"],
+    ];
+    const table = document.createElement("table");
+    table.className = "matrix";
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    const corner = document.createElement("th");
+    corner.textContent = "";
+    headRow.append(corner);
+    channels.forEach(([label, name]) => {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = label;
+      cell.title = name;
+      headRow.append(cell);
+    });
+    head.append(headRow);
+    const body = document.createElement("tbody");
+    statuses.forEach(([name, status]) => {
+      const row = document.createElement("tr");
+      const rowHeader = document.createElement("th");
+      rowHeader.scope = "row";
+      rowHeader.textContent = name;
+      row.append(rowHeader);
+      channels.forEach(([, , channel]) => {
+        const cell = document.createElement("td");
+        cell.textContent = densityChannelIsPresent(status[channel]) ? formatNumber(status[channel]) : "—";
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    table.append(head, body);
+    const scroller = document.createElement("div");
+    scroller.className = "matrix-scroll";
+    scroller.append(table);
+    card.append(scroller);
+  }
   element("metrics").append(card);
 };
 
@@ -882,18 +1075,19 @@ const renderMetrics = (current) => {
   const readingFields = [];
   addText(readingFields, "Mode", displayMode(current.measurement_mode));
   addText(readingFields, "Timestamp", current.timestamp);
-  appendCard("Reading", readingFields, true);
+  appendCard("Reading", readingFields);
 
   const instrument = current.instrument || {};
   const instrumentFields = [];
   addText(instrumentFields, "Type", instrument.instrument_type);
   addText(instrumentFields, "Serial", instrument.serial_number);
   addText(instrumentFields, "Firmware", instrument.firmware_version);
-  addText(instrumentFields, "Chip ID", instrument.chip_id);
-  addText(instrumentFields, "Version", instrument.version_string);
   addText(instrumentFields, "Calibration", instrument.calibration_version);
   addText(instrumentFields, "Production", instrument.production_number);
-  appendCard("Instrument", instrumentFields, true);
+  // These two are longer than half a card, so each takes a full row under the short facts.
+  addText(instrumentFields, "Chip ID", instrument.chip_id, true);
+  addText(instrumentFields, "Version", instrument.version_string, true);
+  appendCard("Instrument", instrumentFields, { layout: "cols-2" });
 
   const spectrum = current.spectrum || { values: [] };
   const spectrumFields = [];
@@ -903,11 +1097,11 @@ const renderMetrics = (current) => {
     addNumber(spectrumFields, "Samples", spectrum.values.length);
   }
   if (typeof spectrum.steps === "number" && spectrum.steps !== spectrum.values.length) {
-    addNumber(spectrumFields, "Reported steps", spectrum.steps);
+    addNumber(spectrumFields, "Reported steps", spectrum.steps, undefined, true);
   }
-  addNumber(spectrumFields, "Peak", current.peak_value, spectrum.unit);
-  addNumber(spectrumFields, "Peak wavelength", current.peak_wavelength_nm, "nm");
-  appendCard("Spectrum", spectrumFields, false);
+  addNumber(spectrumFields, "Peak", current.peak_value, spectrum.unit, true);
+  addNumber(spectrumFields, "Peak wavelength", current.peak_wavelength_nm, "nm", true);
+  appendCard("Spectrum", spectrumFields, { layout: "cols-3" });
 
   const colorFields = [];
   addNumber(colorFields, "X", current.xyz.x);
@@ -916,7 +1110,7 @@ const renderMetrics = (current) => {
   addNumber(colorFields, "L*", current.lab.l);
   addNumber(colorFields, "a*", current.lab.a);
   addNumber(colorFields, "b*", current.lab.b);
-  appendCard("XYZ / Lab", colorFields, false);
+  appendCard("XYZ / Lab", colorFields, { layout: "cols-3" });
 
   const light = current.illuminant;
   const lightFields = [];
@@ -928,14 +1122,7 @@ const renderMetrics = (current) => {
   addNumber(lightFields, "Planckian ΔE", light.closest_planckian_de2k);
   addNumber(lightFields, "Daylight", light.closest_daylight_kelvin, "K");
   addNumber(lightFields, "Daylight ΔE", light.closest_daylight_de2k);
-  appendCard("Light", lightFields, false);
-
-  const criFields = [];
-  addNumber(criFields, "Ra", current.cri.ra);
-  for (let index = 1; index <= 14; index += 1) {
-    addNumber(criFields, `R${index}`, current.cri[`r${index}`]);
-  }
-  appendCard("CRI", criFields, false, true);
+  appendCard("Light", lightFields, { layout: "cols-2" });
 
   const renderingFields = [];
   addNumber(renderingFields, "Rf", current.tm30.rf);
@@ -944,24 +1131,17 @@ const renderMetrics = (current) => {
   addNumber(renderingFields, "Duv", current.tm30.duv);
   addNumber(renderingFields, "TLCI Qa", current.tlci_qa);
   const renderingTitle = typeof current.tm30.rf === "number" || typeof current.tm30.rg === "number" ? "TM-30" : "TLCI";
-  appendCard(renderingTitle, renderingFields, false);
+  appendCard(renderingTitle, renderingFields, { layout: "cols-2" });
 
-  const density = current.density;
-  const densityFields = [];
-  addNumber(densityFields, "ISO visual", density.iso_vis);
-  addNumber(densityFields, "Type 1", density.type_1);
-  addNumber(densityFields, "Type 2", density.type_2);
-  const addStatus = (name, status) => {
-    addNumber(densityFields, `${name} C`, status.cyan);
-    addNumber(densityFields, `${name} M`, status.magenta);
-    addNumber(densityFields, `${name} Y`, status.yellow);
-    addNumber(densityFields, `${name} V`, status.visual);
-  };
-  addStatus("Status A", density.status_a);
-  addStatus("Status M", density.status_m);
-  addStatus("Status T", density.status_t);
-  addStatus("Status E", density.status_e);
-  appendCard("Density", densityFields, false);
+  appendDensity(current.density);
+
+  const criFields = [];
+  addNumber(criFields, "Ra", current.cri.ra);
+  for (let index = 1; index <= 14; index += 1) {
+    addNumber(criFields, `R${index}`, current.cri[`r${index}`]);
+  }
+  appendCard("CRI", criFields, { layout: "dense", span: "all" });
+
   appendNotes(current.notes);
 };
 
@@ -1017,6 +1197,13 @@ const render = () => {
   draw();
 };
 
+const readError = (message) => {
+  if (typeof message.error === "string" && message.error !== "") {
+    return message.error;
+  }
+  return "";
+};
+
 const scheduleReconnect = () => {
   if (reconnectTimer !== null) {
     return;
@@ -1049,12 +1236,20 @@ const connect = () => {
       detail = typeof message.detail === "string" ? message.detail : detail;
       outputPath = typeof message.output === "string" ? message.output : "";
       reading = message.reading;
+      // A failed sample keeps the previous reading, so the countdown stays up.
+      problemText = reading ? "" : readError(message);
       render();
     } else if (message.type === "reading") {
       reading = message.reading;
+      problemText = "";
       render();
     } else if (message.type === "status") {
       detail = typeof message.detail === "string" ? message.detail : detail;
+      if (reading) {
+        problemText = "";
+      } else if ("error" in message) {
+        problemText = readError(message);
+      }
       renderStatus();
     }
   });

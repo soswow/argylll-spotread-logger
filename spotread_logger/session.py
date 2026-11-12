@@ -19,6 +19,7 @@ from spotread_logger.parse_reading import (
 CALIBRATION_PROMPT = r"(?i)hit any key to continue,\s*\n?\s*or hit Esc or Q to abort:"
 MEASURE_PROMPT = r"(?i)any other key to take a reading:"
 RETRY_PROMPT = r"(?i)any other key to retry:"
+ABORTED_READING_STATUS = "spotread aborted a reading; retrying"
 
 
 @dataclass
@@ -156,7 +157,7 @@ def run_spotread_session(
                 options.reading_timeout_seconds,
             )
             if outcome_index == 1:
-                options.on_status("spotread aborted a reading; retrying")
+                options.on_status(ABORTED_READING_STATUS)
                 child.send(" ")
                 continue
             timestamp = (

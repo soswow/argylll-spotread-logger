@@ -2,9 +2,7 @@
 
 Polls a spectrometer or colorimeter through ArgyllCMS `spotread` and appends every reading to a CSV file, with a timestamp. With `--serve`, the same readings are also shown on a page on this computer. It has been used with an X-Rite ColorMunki. The parser reads `spotread`'s text, so another instrument that prints the same report can be logged the same way.
 
-![Spectrum of the latest reading, filled with an approximate color for each wavelength](docs/dashboard-spectrum.jpg)
-
-![Values from the latest reading: instrument, spectrum, XYZ, Lab, light, CRI, and TM-30](docs/dashboard-values.jpg)
+![Latest reflectance reading: wavelength-colored spectrum, L*, and the value cards](docs/dashboard.jpg)
 
 `spotread` is interactive: it may wait for a calibration key, then waits for a measurement key. This tool drives those prompts on a pseudo-terminal, asks you to set the instrument, then takes a reading on a timer. With `--no-calibration` it passes `-N`. When `spotread` still has a valid calibration it goes straight to measuring; when it asks anyway, the logger waits for the calibration step.
 
@@ -79,7 +77,7 @@ python -m spotread_logger --interval min --serve --port 8765 --output live.csv
 
 Open the printed address, for example http://127.0.0.1:8080/. The spectrum fills the page. It is a smooth curve through the samples, and the area under it is colored by wavelength, violet through red. That color is a screen approximation of the wavelength, not another measurement. Under the chart are the values the reading actually contains: XYZ, Lab, the instrument, and the illuminant, CRI, TM-30, and density figures. A swatch shows an approximate color from XYZ. Reflectance keeps its lightness. A light reading is brightened so the hue stays visible.
 
-The time of the latest reading is a clock time and an age, and the age keeps moving while the page is open. New readings arrive over a WebSocket. The page keeps only the latest one. Refreshing, or opening the address again, shows that same reading. If the connection drops, the page tries again.
+The time of the latest reading is a clock time and an age, and the age keeps moving while the page is open. New readings arrive over a WebSocket. The page keeps only the latest one. If spotread aborts a sample, or comes back with no spectrum or color values, the page leaves the previous reading up and keeps counting toward the next one. Refreshing, or opening the address again, shows that same reading. If the connection drops, the page tries again.
 
 ## License
 
