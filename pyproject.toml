@@ -5,17 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "spotread-logger"
 version = "1.0.0"
-description = "Poll ArgyllCMS spotread and append each reading to a CSV file."
+description = "Poll ArgyllCMS spotread, log each reading to CSV, and optionally show the latest one in a browser."
 readme = "README.md"
 license = "GPL-3.0-only"
 requires-python = ">=3.11"
-dependencies = ["pexpect>=4.9"]
+dependencies = ["pexpect>=4.9", "aiohttp>=3.10"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.8"]
 
 [tool.setuptools.packages.find]
 include = ["spotread_logger*"]
+
+[tool.setuptools.package-data]
+spotread_logger = ["static/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

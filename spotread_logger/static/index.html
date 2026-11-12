@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spotread logger</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: #101719;
+  color: #edf6f3;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+main { max-width: 1180px; margin: 0 auto; padding: 28px 28px 48px; }
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin-bottom: 18px;
+}
+.identity { min-width: 0; flex: 1; }
+h1 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #a7bcb5;
+}
+.hero { display: flex; align-items: center; gap: 16px; }
+.swatch {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+.reading {
+  margin: 0;
+  font-size: clamp(40px, 6vw, 64px);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+}
+.reading span {
+  font-size: 0.38em;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #9bb1aa;
+  margin-left: 0.15em;
+}
+.summary { margin: 8px 0 0; color: #b7c9c3; font-size: 14px; line-height: 1.4; }
+.summary:empty { display: none; }
+.meta {
+  display: grid;
+  gap: 5px;
+  justify-items: end;
+  text-align: right;
+  color: #91a8a0;
+  font-size: 13px;
+  max-width: 420px;
+}
+.status { display: flex; align-items: center; gap: 7px; color: #c0d0cc; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #e6ac65; flex: none; }
+.live .dot { background: #74d5ad; }
+.offline .dot { background: #ee8181; }
+#measured-at { color: #d7e6e1; }
+#saving { overflow-wrap: anywhere; }
+.chart {
+  background: #182326;
+  border: 1px solid #2c3b3c;
+  border-radius: 18px;
+  padding: 18px 18px 12px;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.chart h2 { margin: 0; font-size: 16px; font-weight: 600; color: #edf6f3; }
+.chart-head p { margin: 0; color: #91a8a0; font-size: 13px; }
+.plot { position: relative; height: clamp(340px, 58vh, 640px); }
+canvas { width: 100%; height: 100%; display: block; }
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #91a8a0;
+  font-size: 14px;
+  pointer-events: none;
+}
+.note { margin: 8px 4px 4px; color: #91a8a0; font-size: 12px; line-height: 1.45; }
+.placeholder { margin: 14px 4px 0; color: #91a8a0; font-size: 14px; }
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  align-items: start;
+}
+.metrics:empty { display: none; }
+article {
+  background: #182326;
+  border: 1px solid #2c3b3c;
+  border-radius: 16px;
+  padding: 16px 18px 18px;
+  min-width: 0;
+}
+article h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #a7bcb5;
+}
+dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px 16px; margin: 0; }
+.stack dl { grid-template-columns: 1fr; }
+.dense dl { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); }
+dl div { min-width: 0; }
+dt { color: #91a8a0; font-size: 12px; }
+dd {
+  margin: 3px 0 0;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.notes { margin: 0; padding-left: 18px; color: #d7e4df; }
+.notes li + li { margin-top: 6px; }
+@media (max-width: 700px) {
+  main { padding: 16px 12px 32px; }
+  header { flex-direction: column; align-items: flex-start; }
+  .meta { justify-items: start; text-align: left; max-width: none; }
+  .plot { height: 52vh; min-height: 260px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="identity">
+      <h1 id="instrument">Spotread logger</h1>
+      <div class="hero">
+        <div class="swatch" id="swatch" role="img" aria-label="Approximate color from XYZ" hidden></div>
+        <div>
+          <p class="reading" id="primary" aria-live="polite">—</p>
+          <p class="summary" id="summary"></p>
+        </div>
+      </div>
+    </div>
+    <div class="meta">
+      <div id="status" class="status waiting"><span class="dot"></span><span id="status-text">Connecting…</span></div>
+      <time id="measured-at">Waiting for a measurement</time>
+      <div id="saving" hidden></div>
+    </div>
+  </header>
+  <section class="chart" aria-labelledby="spectrum-title">
+    <div class="chart-head">
+      <h2 id="spectrum-title">Spectrum</h2>
+      <p id="spectrum-unit"></p>
+    </div>
+    <div class="plot">
+      <canvas id="plot" role="img" aria-label="Spectrum chart"></canvas>
+      <div class="empty" id="empty">Waiting for a measurement…</div>
+    </div>
+    <p class="note">Fill color is an approximate screen color for each wavelength.</p>
+  </section>
+  <p class="placeholder" id="metrics-empty">Values appear after the first measurement.</p>
+  <section class="metrics" id="metrics" aria-label="Measurement values"></section>
+</main>
+<script>
+const element = (id) => {
+  return document.getElementById(id);
+};
+
+const chartMargin = { left: 88, right: 16, top: 14, bottom: 32 };
+
+// D50 and D65 white points, CIE 1931 2°. XYZ from spotread's Lab is D50.
+const d50White = [0.96422, 1, 0.82521];
+const d65White = [0.95047, 1, 1.08883];
+const bradford = [
+  [0.8951, 0.2664, -0.1614],
+  [-0.7502, 1.7135, 0.0367],
+  [0.0389, -0.0685, 1.0296],
+];
+const xyzD65ToLinearSrgb = [
+  [3.2404542, -1.5371385, -0.4985314],
+  [-0.969266, 1.8760108, 0.041556],
+  [0.0556434, -0.2040259, 1.0572252],
+];
+
+let reading = null;
+let detail = "Waiting for a measurement";
+let outputPath = "";
+let connection = "connecting";
+let socket = null;
+let reconnectTimer = null;
+
+const formatNumber = (value) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "—";
+  }
+  return value.toLocaleString(undefined, { maximumSignificantDigits: 6 });
+};
+
+const displayMode = (mode) => {
+  if (typeof mode !== "string" || mode.length === 0) {
+    return "Unknown";
+  }
+  return mode.charAt(0).toUpperCase() + mode.slice(1);
+};
+
+const formatAge = (milliseconds) => {
+  const seconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (seconds < 1) {
+    return "just now";
+  }
+  if (seconds < 60) {
+    return seconds === 1 ? "1 second ago" : `${seconds} seconds ago`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+};
+
+const formatClock = (date) => {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+};
+
+const multiplyMatrix = (left, right) => {
+  const product = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (let row = 0; row < 3; row += 1) {
+    for (let column = 0; column < 3; column += 1) {
+      product[row][column] =
+        left[row][0] * right[0][column] +
+        left[row][1] * right[1][column] +
+        left[row][2] * right[2][column];
+    }
+  }
+  return product;
+};
+
+const multiplyVector = (matrix, vector) => {
+  return [
+    matrix[0][0] * vector[0] + matrix[0][1] * vector[1] + matrix[0][2] * vector[2],
+    matrix[1][0] * vector[0] + matrix[1][1] * vector[1] + matrix[1][2] * vector[2],
+    matrix[2][0] * vector[0] + matrix[2][1] * vector[1] + matrix[2][2] * vector[2],
+  ];
+};
+
+const invert3 = (matrix) => {
+  const a = matrix[0][0];
+  const b = matrix[0][1];
+  const c = matrix[0][2];
+  const d = matrix[1][0];
+  const e = matrix[1][1];
+  const f = matrix[1][2];
+  const g = matrix[2][0];
+  const h = matrix[2][1];
+  const i = matrix[2][2];
+  const determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+  return [
+    [(e * i - f * h) / determinant, (c * h - b * i) / determinant, (b * f - c * e) / determinant],
+    [(f * g - d * i) / determinant, (a * i - c * g) / determinant, (c * d - a * f) / determinant],
+    [(d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant],
+  ];
+};
+
+// Bradford chromatic adaptation, so D50 XYZ can be shown in sRGB.
+const adaptationMatrix = () => {
+  const sourceCone = multiplyVector(bradford, d50White);
+  const destinationCone = multiplyVector(bradford, d65White);
+  const scale = [
+    [destinationCone[0] / sourceCone[0], 0, 0],
+    [0, destinationCone[1] / sourceCone[1], 0],
+    [0, 0, destinationCone[2] / sourceCone[2]],
+  ];
+  return multiplyMatrix(invert3(bradford), multiplyMatrix(scale, bradford));
+};
+
+const d50ToD65 = adaptationMatrix();
+
+const encodeSrgbChannel = (channel) => {
+  const clamped = Math.min(1, Math.max(0, channel));
+  if (clamped <= 0.0031308) {
+    return 12.92 * clamped;
+  }
+  return 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055;
+};
+
+// Reflectance stays at its lightness. A light reading is scaled to Y=1 so the hue is visible.
+const displayColor = (current) => {
+  const x = current.xyz.x;
+  const y = current.xyz.y;
+  const z = current.xyz.z;
+  if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") {
+    return null;
+  }
+  let scaledX = x;
+  let scaledY = y;
+  let scaledZ = z;
+  if (current.measurement_mode === "reflectance") {
+    scaledX /= 100;
+    scaledY /= 100;
+    scaledZ /= 100;
+  } else {
+    const scale = y > 0 ? y : Math.max(x, y, z);
+    if (!(scale > 0)) {
+      return null;
+    }
+    scaledX /= scale;
+    scaledY /= scale;
+    scaledZ /= scale;
+  }
+  const adapted = multiplyVector(d50ToD65, [scaledX, scaledY, scaledZ]);
+  let red = xyzD65ToLinearSrgb[0][0] * adapted[0] + xyzD65ToLinearSrgb[0][1] * adapted[1] + xyzD65ToLinearSrgb[0][2] * adapted[2];
+  let green = xyzD65ToLinearSrgb[1][0] * adapted[0] + xyzD65ToLinearSrgb[1][1] * adapted[1] + xyzD65ToLinearSrgb[1][2] * adapted[2];
+  let blue = xyzD65ToLinearSrgb[2][0] * adapted[0] + xyzD65ToLinearSrgb[2][1] * adapted[1] + xyzD65ToLinearSrgb[2][2] * adapted[2];
+  const brightest = Math.max(red, green, blue, 0);
+  if (brightest > 1) {
+    red /= brightest;
+    green /= brightest;
+    blue /= brightest;
+  }
+  red = Math.max(0, red);
+  green = Math.max(0, green);
+  blue = Math.max(0, blue);
+  const byte = (channel) => {
+    return Math.round(encodeSrgbChannel(channel) * 255);
+  };
+  return `rgb(${byte(red)}, ${byte(green)}, ${byte(blue)})`;
+};
+
+// Dan Bruton's wavelength approximation. It paints the axis; it is not the sample's color.
+const wavelengthColor = (wavelength) => {
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  if (wavelength >= 380 && wavelength < 440) {
+    red = -(wavelength - 440) / (440 - 380);
+    blue = 1;
+  } else if (wavelength >= 440 && wavelength < 490) {
+    green = (wavelength - 440) / (490 - 440);
+    blue = 1;
+  } else if (wavelength >= 490 && wavelength < 510) {
+    green = 1;
+    blue = -(wavelength - 510) / (510 - 490);
+  } else if (wavelength >= 510 && wavelength < 580) {
+    red = (wavelength - 510) / (580 - 510);
+    green = 1;
+  } else if (wavelength >= 580 && wavelength < 645) {
+    red = 1;
+    green = -(wavelength - 645) / (645 - 580);
+  } else if (wavelength >= 645 && wavelength <= 780) {
+    red = 1;
+  } else {
+    return "rgb(48, 48, 58)";
+  }
+  let factor = 0;
+  if (wavelength < 420) {
+    factor = 0.3 + (0.7 * (wavelength - 380)) / (420 - 380);
+  } else if (wavelength <= 700) {
+    factor = 1;
+  } else {
+    factor = 0.3 + (0.7 * (780 - wavelength)) / (780 - 700);
+  }
+  const adjust = (channel) => {
+    if (channel <= 0) {
+      return 0;
+    }
+    return Math.round(255 * Math.pow(channel * factor, 0.8));
+  };
+  return `rgb(${adjust(red)}, ${adjust(green)}, ${adjust(blue)})`;
+};
+
+const spectrumPoints = (spectrum) => {
+  const count = spectrum.values.length;
+  return spectrum.values.map((value, index) => {
+    const wavelength = count === 1
+      ? spectrum.start_nm
+      : spectrum.start_nm + ((spectrum.end_nm - spectrum.start_nm) * index) / (count - 1);
+    return { wavelength, value };
+  });
+};
+
+const wavelengthsIncrease = (points) => {
+  return points.every((point, index) => {
+    if (index === 0) {
+      return true;
+    }
+    return point.wavelength > points[index - 1].wavelength;
+  });
+};
+
+// Fritsch–Carlson tangents stay inside the data, so the curve does not invent peaks.
+const monotoneTangents = (points) => {
+  const slopes = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const span = points[index + 1].wavelength - points[index].wavelength;
+    slopes.push((points[index + 1].value - points[index].value) / span);
+  }
+  const tangents = [slopes[0]];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    if (slopes[index - 1] * slopes[index] <= 0) {
+      tangents.push(0);
+    } else {
+      tangents.push((slopes[index - 1] + slopes[index]) / 2);
+    }
+  }
+  tangents.push(slopes[slopes.length - 1]);
+  for (let index = 0; index < slopes.length; index += 1) {
+    if (slopes[index] === 0) {
+      tangents[index] = 0;
+      tangents[index + 1] = 0;
+      continue;
+    }
+    const alpha = tangents[index] / slopes[index];
+    const beta = tangents[index + 1] / slopes[index];
+    const magnitude = alpha * alpha + beta * beta;
+    if (magnitude > 9) {
+      const scale = 3 / Math.sqrt(magnitude);
+      tangents[index] = scale * alpha * slopes[index];
+      tangents[index + 1] = scale * beta * slopes[index];
+    }
+  }
+  return tangents;
+};
+
+const hermiteSegment = (start, end, startTangent, endTangent) => {
+  const span = end.wavelength - start.wavelength;
+  const steps = Math.max(8, Math.ceil(span / 0.5));
+  const samples = [];
+  for (let step = 0; step <= steps; step += 1) {
+    const t = step / steps;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const h00 = 2 * t3 - 3 * t2 + 1;
+    const h10 = t3 - 2 * t2 + t;
+    const h01 = -2 * t3 + 3 * t2;
+    const h11 = t3 - t2;
+    samples.push({
+      wavelength: start.wavelength + span * t,
+      value: h00 * start.value + h10 * span * startTangent + h01 * end.value + h11 * span * endTangent,
+    });
+  }
+  return samples;
+};
+
+const smoothSeries = (points) => {
+  if (points.length < 2 || !wavelengthsIncrease(points)) {
+    return points;
+  }
+  const tangents = monotoneTangents(points);
+  const samples = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const segment = hermiteSegment(
+      points[index],
+      points[index + 1],
+      tangents[index],
+      tangents[index + 1],
+    );
+    if (samples.length > 0) {
+      segment.shift();
+    }
+    samples.push(...segment);
+  }
+  return samples;
+};
+
+const spectrumIsPlottable = (spectrum) => {
+  if (!spectrum || !Array.isArray(spectrum.values) || spectrum.values.length === 0) {
+    return false;
+  }
+  if (typeof spectrum.start_nm !== "number" || typeof spectrum.end_nm !== "number") {
+    return false;
+  }
+  if (spectrum.values.length > 1 && !(spectrum.end_nm > spectrum.start_nm)) {
+    return false;
+  }
+  return spectrum.values.every((value) => {
+    return typeof value === "number" && Number.isFinite(value);
+  });
+};
+
+const emptyMessage = () => {
+  if (!reading) {
+    return "Waiting for a measurement…";
+  }
+  if (!reading.spectrum || !Array.isArray(reading.spectrum.values) || reading.spectrum.values.length === 0) {
+    return "This measurement has no spectrum.";
+  }
+  return "This spectrum has no wavelength span.";
+};
+
+const spectralGradient = (context, left, right, startNm, endNm) => {
+  const gradient = context.createLinearGradient(left, 0, right, 0);
+  const seen = new Set();
+  const addStop = (wavelength) => {
+    const offset = (wavelength - startNm) / (endNm - startNm);
+    const key = offset.toFixed(6);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    gradient.addColorStop(Math.min(1, Math.max(0, offset)), wavelengthColor(wavelength));
+  };
+  addStop(startNm);
+  const first = Math.ceil(startNm / 5) * 5;
+  for (let wavelength = first; wavelength < endNm; wavelength += 5) {
+    addStop(wavelength);
+  }
+  addStop(endNm);
+  return gradient;
+};
+
+const extentIncludingZero = (values) => {
+  let lowest = 0;
+  let highest = 0;
+  values.forEach((value) => {
+    lowest = Math.min(lowest, value);
+    highest = Math.max(highest, value);
+  });
+  return { lowest, highest };
+};
+
+const draw = () => {
+  const canvas = element("plot");
+  const bounds = canvas.getBoundingClientRect();
+  if (bounds.width < 10 || bounds.height < 10) {
+    return;
+  }
+  const pixelRatio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(bounds.width * pixelRatio);
+  canvas.height = Math.round(bounds.height * pixelRatio);
+  const context = canvas.getContext("2d");
+  context.scale(pixelRatio, pixelRatio);
+  const width = bounds.width;
+  const height = bounds.height;
+  const plotLeft = chartMargin.left;
+  const plotTop = chartMargin.top;
+  const plotWidth = width - chartMargin.left - chartMargin.right;
+  const plotHeight = height - chartMargin.top - chartMargin.bottom;
+  const empty = element("empty");
+  if (!reading || !spectrumIsPlottable(reading.spectrum) || plotWidth <= 0 || plotHeight <= 0) {
+    empty.hidden = false;
+    empty.textContent = emptyMessage();
+    return;
+  }
+  empty.hidden = true;
+
+  const spectrum = reading.spectrum;
+  const series = smoothSeries(spectrumPoints(spectrum));
+  const { lowest, highest } = extentIncludingZero(series.map((sample) => sample.value));
+  const span = highest - lowest;
+  const padding = Math.max(span * 0.12, Math.abs(highest) * 0.06, 1e-9);
+  let minimum = lowest < 0 ? lowest - padding : 0;
+  let maximum = highest > 0 ? highest + padding : 0;
+  if (maximum <= minimum) {
+    maximum = minimum + 1;
+  }
+  const startNm = spectrum.start_nm;
+  const endNm = spectrum.end_nm;
+  const xForWavelength = (wavelength) => {
+    if (!(endNm > startNm)) {
+      return plotLeft + plotWidth / 2;
+    }
+    return plotLeft + ((wavelength - startNm) / (endNm - startNm)) * plotWidth;
+  };
+  const yForValue = (value) => {
+    return plotTop + ((maximum - value) / (maximum - minimum)) * plotHeight;
+  };
+  const placed = series.map((sample) => {
+    return { x: xForWavelength(sample.wavelength), y: yForValue(sample.value) };
+  });
+  const baselineY = yForValue(0);
+
+  const traceFill = () => {
+    context.beginPath();
+    context.moveTo(placed[0].x, baselineY);
+    placed.forEach((sample) => {
+      context.lineTo(sample.x, sample.y);
+    });
+    context.lineTo(placed[placed.length - 1].x, baselineY);
+    context.closePath();
+  };
+  const traceLine = () => {
+    context.beginPath();
+    placed.forEach((sample, index) => {
+      if (index === 0) {
+        context.moveTo(sample.x, sample.y);
+        return;
+      }
+      context.lineTo(sample.x, sample.y);
+    });
+  };
+
+  if (placed.length > 1 && endNm > startNm) {
+    context.save();
+    traceFill();
+    context.clip();
+    context.fillStyle = spectralGradient(context, placed[0].x, placed[placed.length - 1].x, startNm, endNm);
+    context.fillRect(plotLeft, plotTop, plotWidth, plotHeight);
+    if (baselineY - plotTop > 2) {
+      const shade = context.createLinearGradient(0, plotTop, 0, baselineY);
+      shade.addColorStop(0, "rgba(0, 0, 0, 0)");
+      shade.addColorStop(1, "rgba(0, 0, 0, 0.22)");
+      context.fillStyle = shade;
+      context.fillRect(plotLeft, plotTop, plotWidth, plotHeight);
+    }
+    context.restore();
+  }
+
+  context.lineWidth = 1;
+  context.strokeStyle = "rgba(237, 246, 243, 0.12)";
+  context.font = "12px system-ui";
+  context.fillStyle = "#91a8a0";
+  context.textBaseline = "middle";
+  context.textAlign = "right";
+  for (let index = 0; index <= 4; index += 1) {
+    const y = plotTop + (plotHeight * index) / 4;
+    const value = maximum - ((maximum - minimum) * index) / 4;
+    context.beginPath();
+    context.moveTo(plotLeft, y);
+    context.lineTo(plotLeft + plotWidth, y);
+    context.stroke();
+    context.fillText(formatNumber(value), plotLeft - 10, y);
+  }
+
+  context.textBaseline = "bottom";
+  const firstTick = Math.ceil(startNm / 50) * 50;
+  const lastTick = Math.floor(endNm / 50) * 50;
+  if (!(endNm > startNm) || lastTick < firstTick || endNm - startNm < 40) {
+    context.textAlign = "left";
+    context.fillText(`${formatNumber(startNm)} nm`, plotLeft, height - 6);
+    context.textAlign = "right";
+    context.fillText(`${formatNumber(endNm)} nm`, plotLeft + plotWidth, height - 6);
+  } else {
+    context.textAlign = "center";
+    for (let wavelength = firstTick; wavelength <= lastTick; wavelength += 50) {
+      const x = xForWavelength(wavelength);
+      context.beginPath();
+      context.moveTo(x, plotTop);
+      context.lineTo(x, plotTop + plotHeight);
+      context.stroke();
+      context.fillText(String(wavelength), x, height - 6);
+    }
+  }
+
+  context.lineJoin = "round";
+  context.lineCap = "round";
+  if (placed.length > 1) {
+    traceLine();
+    context.strokeStyle = "rgba(8, 12, 14, 0.45)";
+    context.lineWidth = 4;
+    context.stroke();
+    context.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    context.lineWidth = 1.5;
+    context.stroke();
+  } else {
+    context.beginPath();
+    context.fillStyle = wavelengthColor(startNm);
+    context.arc(placed[0].x, placed[0].y, 6, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  if (typeof reading.peak_wavelength_nm === "number" && typeof reading.peak_value === "number") {
+    const peakX = xForWavelength(reading.peak_wavelength_nm);
+    const peakY = yForValue(reading.peak_value);
+    if (peakX >= plotLeft && peakX <= plotLeft + plotWidth && peakY >= plotTop && peakY <= plotTop + plotHeight) {
+      context.beginPath();
+      context.fillStyle = "#101719";
+      context.arc(peakX, peakY, 5.5, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.fillStyle = "#ffffff";
+      context.arc(peakX, peakY, 3.2, 0, Math.PI * 2);
+      context.fill();
+      context.font = "12px system-ui";
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      context.fillStyle = "#f4fbf8";
+      context.shadowColor = "rgba(0, 0, 0, 0.75)";
+      context.shadowBlur = 4;
+      const label = `${formatNumber(reading.peak_wavelength_nm)} nm`;
+      const labelY = peakY - 12 < plotTop + 14 ? peakY + 18 : peakY - 10;
+      context.fillText(label, Math.min(plotLeft + plotWidth - 28, Math.max(plotLeft + 28, peakX)), labelY);
+      context.shadowBlur = 0;
+    }
+  }
+};
+
+const heroFor = (current) => {
+  if (typeof current.illuminant.lux === "number") {
+    return { value: formatNumber(current.illuminant.lux), unit: "lux" };
+  }
+  if (current.measurement_mode === "reflectance" && typeof current.lab.l === "number") {
+    return { value: formatNumber(current.lab.l), unit: "L*" };
+  }
+  if (typeof current.xyz.y === "number") {
+    const unit = current.measurement_mode === "reflectance" ? "" : "cd/m²";
+    return { value: formatNumber(current.xyz.y), unit };
+  }
+  if (typeof current.lab.l === "number") {
+    return { value: formatNumber(current.lab.l), unit: "L*" };
+  }
+  return { value: "—", unit: "" };
+};
+
+const summaryFor = (current, hero) => {
+  const parts = [];
+  if (typeof current.illuminant.cct_kelvin === "number") {
+    parts.push(`${formatNumber(current.illuminant.cct_kelvin)} K`);
+  }
+  if (typeof current.illuminant.duv === "number") {
+    parts.push(`Duv ${formatNumber(current.illuminant.duv)}`);
+  }
+  const labParts = [];
+  if (hero.unit !== "L*" && typeof current.lab.l === "number") {
+    labParts.push(`L* ${formatNumber(current.lab.l)}`);
+  }
+  if (typeof current.lab.a === "number") {
+    labParts.push(`a* ${formatNumber(current.lab.a)}`);
+  }
+  if (typeof current.lab.b === "number") {
+    labParts.push(`b* ${formatNumber(current.lab.b)}`);
+  }
+  if (labParts.length > 0) {
+    parts.push(labParts.join("  "));
+  }
+  if (typeof current.peak_wavelength_nm === "number") {
+    parts.push(`peak ${formatNumber(current.peak_wavelength_nm)} nm`);
+  }
+  return parts.join(" · ");
+};
+
+const showPrimary = (value, unit) => {
+  const primary = element("primary");
+  primary.replaceChildren();
+  primary.append(document.createTextNode(value));
+  if (unit) {
+    const unitNode = document.createElement("span");
+    unitNode.textContent = unit;
+    primary.append(document.createTextNode(" "), unitNode);
+  }
+};
+
+const renderMeasuredAt = () => {
+  const measuredAt = element("measured-at");
+  if (!reading || typeof reading.timestamp !== "string") {
+    measuredAt.removeAttribute("datetime");
+    measuredAt.textContent = "Waiting for a measurement";
+    return;
+  }
+  measuredAt.setAttribute("datetime", reading.timestamp);
+  const parsed = Date.parse(reading.timestamp);
+  if (Number.isNaN(parsed)) {
+    measuredAt.textContent = `Last measurement ${reading.timestamp}`;
+    return;
+  }
+  const measured = new Date(parsed);
+  const now = new Date();
+  const sameDay = measured.toDateString() === now.toDateString();
+  const when = sameDay ? formatClock(measured) : `${measured.toLocaleDateString()} ${formatClock(measured)}`;
+  measuredAt.textContent = `Last measurement ${when} · ${formatAge(Date.now() - parsed)}`;
+};
+
+const renderStatus = () => {
+  const status = element("status");
+  const statusText = element("status-text");
+  if (connection === "connecting") {
+    status.className = "status waiting";
+    statusText.textContent = "Connecting…";
+    return;
+  }
+  if (connection === "closed") {
+    status.className = "status offline";
+    statusText.textContent = "Page disconnected. Reconnecting…";
+    return;
+  }
+  status.className = reading ? "status live" : "status waiting";
+  statusText.textContent = detail || "Waiting for a measurement";
+};
+
+const renderSaving = () => {
+  const saving = element("saving");
+  if (!outputPath) {
+    saving.hidden = true;
+    saving.textContent = "";
+    return;
+  }
+  saving.hidden = false;
+  saving.textContent = `Saving ${outputPath}`;
+};
+
+const addNumber = (fields, label, value, suffix) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return;
+  }
+  const text = suffix ? `${formatNumber(value)} ${suffix}` : formatNumber(value);
+  fields.push([label, text]);
+};
+
+const addText = (fields, label, value) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return;
+  }
+  fields.push([label, value]);
+};
+
+const appendCard = (title, fields, stacked, dense) => {
+  if (fields.length === 0) {
+    return;
+  }
+  const card = document.createElement("article");
+  const classes = [];
+  if (stacked) {
+    classes.push("stack");
+  }
+  if (dense) {
+    classes.push("dense");
+  }
+  if (classes.length > 0) {
+    card.className = classes.join(" ");
+  }
+  const heading = document.createElement("h2");
+  heading.textContent = title;
+  const list = document.createElement("dl");
+  fields.forEach(([label, text]) => {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.textContent = text;
+    row.append(term, description);
+    list.append(row);
+  });
+  card.append(heading, list);
+  element("metrics").append(card);
+};
+
+const appendNotes = (notes) => {
+  if (!Array.isArray(notes) || notes.length === 0) {
+    return;
+  }
+  const card = document.createElement("article");
+  const heading = document.createElement("h2");
+  heading.textContent = "Notes";
+  const list = document.createElement("ul");
+  list.className = "notes";
+  notes.forEach((note) => {
+    if (typeof note !== "string" || note.trim() === "") {
+      return;
+    }
+    const item = document.createElement("li");
+    item.textContent = note;
+    list.append(item);
+  });
+  if (list.childElementCount === 0) {
+    return;
+  }
+  card.append(heading, list);
+  element("metrics").append(card);
+};
+
+const renderMetrics = (current) => {
+  const metrics = element("metrics");
+  metrics.replaceChildren();
+  element("metrics-empty").hidden = true;
+
+  const readingFields = [];
+  addText(readingFields, "Mode", displayMode(current.measurement_mode));
+  addText(readingFields, "Timestamp", current.timestamp);
+  appendCard("Reading", readingFields, true);
+
+  const instrument = current.instrument || {};
+  const instrumentFields = [];
+  addText(instrumentFields, "Type", instrument.instrument_type);
+  addText(instrumentFields, "Serial", instrument.serial_number);
+  addText(instrumentFields, "Firmware", instrument.firmware_version);
+  addText(instrumentFields, "Chip ID", instrument.chip_id);
+  addText(instrumentFields, "Version", instrument.version_string);
+  addText(instrumentFields, "Calibration", instrument.calibration_version);
+  addText(instrumentFields, "Production", instrument.production_number);
+  appendCard("Instrument", instrumentFields, true);
+
+  const spectrum = current.spectrum || { values: [] };
+  const spectrumFields = [];
+  addNumber(spectrumFields, "Start", spectrum.start_nm, "nm");
+  addNumber(spectrumFields, "End", spectrum.end_nm, "nm");
+  if (Array.isArray(spectrum.values) && spectrum.values.length > 0) {
+    addNumber(spectrumFields, "Samples", spectrum.values.length);
+  }
+  if (typeof spectrum.steps === "number" && spectrum.steps !== spectrum.values.length) {
+    addNumber(spectrumFields, "Reported steps", spectrum.steps);
+  }
+  addNumber(spectrumFields, "Peak", current.peak_value, spectrum.unit);
+  addNumber(spectrumFields, "Peak wavelength", current.peak_wavelength_nm, "nm");
+  appendCard("Spectrum", spectrumFields, false);
+
+  const colorFields = [];
+  addNumber(colorFields, "X", current.xyz.x);
+  addNumber(colorFields, "Y", current.xyz.y);
+  addNumber(colorFields, "Z", current.xyz.z);
+  addNumber(colorFields, "L*", current.lab.l);
+  addNumber(colorFields, "a*", current.lab.a);
+  addNumber(colorFields, "b*", current.lab.b);
+  appendCard("XYZ / Lab", colorFields, false);
+
+  const light = current.illuminant;
+  const lightFields = [];
+  addNumber(lightFields, "Illuminance", light.lux, "lux");
+  addNumber(lightFields, "CCT", light.cct_kelvin, "K");
+  addNumber(lightFields, "Duv", light.duv);
+  addNumber(lightFields, "Suggested EV", light.suggested_ev_iso100, "EV");
+  addNumber(lightFields, "Planckian", light.closest_planckian_kelvin, "K");
+  addNumber(lightFields, "Planckian ΔE", light.closest_planckian_de2k);
+  addNumber(lightFields, "Daylight", light.closest_daylight_kelvin, "K");
+  addNumber(lightFields, "Daylight ΔE", light.closest_daylight_de2k);
+  appendCard("Light", lightFields, false);
+
+  const criFields = [];
+  addNumber(criFields, "Ra", current.cri.ra);
+  for (let index = 1; index <= 14; index += 1) {
+    addNumber(criFields, `R${index}`, current.cri[`r${index}`]);
+  }
+  appendCard("CRI", criFields, false, true);
+
+  const renderingFields = [];
+  addNumber(renderingFields, "Rf", current.tm30.rf);
+  addNumber(renderingFields, "Rg", current.tm30.rg);
+  addNumber(renderingFields, "CCT", current.tm30.cct, "K");
+  addNumber(renderingFields, "Duv", current.tm30.duv);
+  addNumber(renderingFields, "TLCI Qa", current.tlci_qa);
+  const renderingTitle = typeof current.tm30.rf === "number" || typeof current.tm30.rg === "number" ? "TM-30" : "TLCI";
+  appendCard(renderingTitle, renderingFields, false);
+
+  const density = current.density;
+  const densityFields = [];
+  addNumber(densityFields, "ISO visual", density.iso_vis);
+  addNumber(densityFields, "Type 1", density.type_1);
+  addNumber(densityFields, "Type 2", density.type_2);
+  const addStatus = (name, status) => {
+    addNumber(densityFields, `${name} C`, status.cyan);
+    addNumber(densityFields, `${name} M`, status.magenta);
+    addNumber(densityFields, `${name} Y`, status.yellow);
+    addNumber(densityFields, `${name} V`, status.visual);
+  };
+  addStatus("Status A", density.status_a);
+  addStatus("Status M", density.status_m);
+  addStatus("Status T", density.status_t);
+  addStatus("Status E", density.status_e);
+  appendCard("Density", densityFields, false);
+  appendNotes(current.notes);
+};
+
+const describeSpectrum = (current) => {
+  if (!current || !spectrumIsPlottable(current.spectrum)) {
+    return "No spectrum in the latest measurement";
+  }
+  const peak = typeof current.peak_wavelength_nm === "number"
+    ? `, peak at ${formatNumber(current.peak_wavelength_nm)} nanometres`
+    : "";
+  return `Spectrum from ${formatNumber(current.spectrum.start_nm)} to ${formatNumber(current.spectrum.end_nm)} nanometres${peak}`;
+};
+
+const renderReading = () => {
+  const swatch = element("swatch");
+  if (!reading) {
+    element("instrument").textContent = "Spotread logger";
+    showPrimary("—", "");
+    element("summary").textContent = "";
+    swatch.hidden = true;
+    swatch.style.background = "transparent";
+    element("spectrum-title").textContent = "Spectrum";
+    element("spectrum-unit").textContent = "";
+    element("plot").setAttribute("aria-label", "Spectrum chart");
+    element("metrics").replaceChildren();
+    element("metrics-empty").hidden = false;
+    document.title = "Spotread logger";
+    renderMeasuredAt();
+    return;
+  }
+  const instrumentName = reading.instrument && reading.instrument.instrument_type
+    ? reading.instrument.instrument_type
+    : "Spotread";
+  element("instrument").textContent = `${instrumentName} · ${displayMode(reading.measurement_mode)}`;
+  const hero = heroFor(reading);
+  showPrimary(hero.value, hero.unit);
+  element("summary").textContent = summaryFor(reading, hero);
+  const color = displayColor(reading);
+  swatch.hidden = color === null;
+  swatch.style.background = color || "transparent";
+  element("spectrum-title").textContent = reading.spectrum.quantity || "Spectrum";
+  element("spectrum-unit").textContent = reading.spectrum.unit || "";
+  element("plot").setAttribute("aria-label", describeSpectrum(reading));
+  document.title = hero.unit ? `${hero.value} ${hero.unit} · Spotread logger` : `${hero.value} · Spotread logger`;
+  renderMeasuredAt();
+  renderMetrics(reading);
+};
+
+const render = () => {
+  renderStatus();
+  renderSaving();
+  renderReading();
+  draw();
+};
+
+const scheduleReconnect = () => {
+  if (reconnectTimer !== null) {
+    return;
+  }
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, 2000);
+};
+
+const connect = () => {
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  socket = new WebSocket(`${protocol}//${location.host}/ws`);
+  socket.addEventListener("open", () => {
+    connection = "open";
+    renderStatus();
+  });
+  socket.addEventListener("message", (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      return;
+    }
+    if (message === null || typeof message !== "object") {
+      return;
+    }
+    connection = "open";
+    if (message.type === "snapshot") {
+      detail = typeof message.detail === "string" ? message.detail : detail;
+      outputPath = typeof message.output === "string" ? message.output : "";
+      reading = message.reading;
+      render();
+    } else if (message.type === "reading") {
+      reading = message.reading;
+      render();
+    } else if (message.type === "status") {
+      detail = typeof message.detail === "string" ? message.detail : detail;
+      renderStatus();
+    }
+  });
+  socket.addEventListener("close", () => {
+    connection = "closed";
+    renderStatus();
+    scheduleReconnect();
+  });
+  socket.addEventListener("error", () => {
+    socket.close();
+  });
+};
+
+window.addEventListener("resize", draw);
+const plotFrame = element("plot").parentElement;
+if (plotFrame && typeof ResizeObserver !== "undefined") {
+  const observer = new ResizeObserver(() => {
+    draw();
+  });
+  observer.observe(plotFrame);
+}
+window.setInterval(renderMeasuredAt, 1000);
+render();
+connect();
+</script>
+</body>
+</html>

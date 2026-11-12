@@ -1,1 +1,1 @@
-"""Poll ArgyllCMS spotread and append each reading to a CSV file."""
+"""Poll ArgyllCMS spotread, log each reading, and optionally show the latest one."""

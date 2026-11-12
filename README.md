@@ -1,10 +1,14 @@
 # spotread-logger
 
-Polls a spectrometer or colorimeter through ArgyllCMS `spotread` and appends every reading to a CSV file, with a timestamp. It has been used with an X-Rite ColorMunki. The parser reads `spotread`'s text, so another instrument that prints the same report can be logged the same way.
+Polls a spectrometer or colorimeter through ArgyllCMS `spotread` and appends every reading to a CSV file, with a timestamp. With `--serve`, the same readings are also shown on a page on this computer. It has been used with an X-Rite ColorMunki. The parser reads `spotread`'s text, so another instrument that prints the same report can be logged the same way.
+
+![Spectrum of the latest reading, filled with an approximate color for each wavelength](docs/dashboard-spectrum.jpg)
+
+![Values from the latest reading: instrument, spectrum, XYZ, Lab, light, CRI, and TM-30](docs/dashboard-values.jpg)
 
 `spotread` is interactive: it may wait for a calibration key, then waits for a measurement key. This tool drives those prompts on a pseudo-terminal, asks you to set the instrument, then takes a reading on a timer. With `--no-calibration` it passes `-N`. When `spotread` still has a valid calibration it goes straight to measuring; when it asks anyway, the logger waits for the calibration step.
 
-Each row contains the measurement mode, the instrument banner, the spectrum samples, XYZ, and D50 Lab. Ambient rows also have lux, suggested EV, CCT, CRI, and TM-30. Emissive and telephoto rows include CCT, CRI, and TM-30 when `spotread` is run with `-T`, which is the default for those modes. Reflectance rows include ISO and Status A/M/T/E density when `-d` is set, which is the default for that mode. Values `spotread` prints as `nan`, and a missing Planckian temperature, are stored as empty cells. The original `spotread` text is not written to the file. The spectrum is one JSON array of the sample values from the reported start wavelength to the reported end wavelength. Reflectance samples are percents. Ambient, emissive, and telephoto samples are absolute spectral power; the [spotread manual](https://www.argyllcms.com/doc/spotread.html) lists the units. Reflectance XYZ is on a 0–100 scale. The light modes report XYZ in cd/m².
+Each row stores the mode, instrument, spectrum, XYZ, and D50 Lab, plus whatever else that mode printed, such as lux, CCT, CRI, TM-30, or density. `nan` and a missing Planckian temperature become empty cells, and the original `spotread` text is left out. The spectrum is one JSON array from the reported start wavelength to the end. Reflectance samples are percents and reflectance XYZ is 0–100. The light modes store absolute spectral power, with XYZ in cd/m². Units are listed in the [spotread manual](https://www.argyllcms.com/doc/spotread.html).
 
 ## Install
 
@@ -18,13 +22,13 @@ brew install argyll-cms
 
 That formula provides `spotread`. This project was developed against ArgyllCMS 3.5.0 installed that way.
 
-Run it from this directory. Python picks up the `spotread_logger` package on the path, so the project itself does not need to be installed. `pexpect` does.
+Run it from this directory. Python picks up the `spotread_logger` package on the path, so the project itself does not need to be installed. `pexpect` drives `spotread`. `aiohttp` serves the dashboard.
 
 ```bash
 cd spotread-logger
 python3 -m venv .venv
 source .venv/bin/activate
-pip install pexpect
+pip install pexpect aiohttp
 ```
 
 ## Use
@@ -54,13 +58,28 @@ python -m spotread_logger --mode telephoto --no-calibration --output spot.csv
 | `--timeout <seconds>` | `120` | How long to wait for connect, calibration, or a single reading. |
 | `--no-prompt` | off | Send the calibration key and start measuring without waiting for Enter. |
 | `--no-calibration` | off | Pass `-N`. `spotread` skips calibration when a previous one is still valid. |
+| `--serve` | off | Also open a page of the latest reading on this computer. The CSV is still written. |
+| `--port <port>` | `8080` | Port for `--serve`. |
 | `[spotread-args...]` | from `--mode` | Replaces the mode's arguments. `--no-calibration` still appends `-N` when it is missing. |
 
 ```bash
 python -m spotread_logger --interval 10 --output ~/light.csv -- -a -H -s -v
 ```
 
-Ctrl-C sends `q` to `spotread` so the instrument is released.
+Ctrl-C sends `q` to `spotread` so the instrument is released. When `--serve` is on, that also closes the page.
+
+## Dashboard
+
+`--serve` opens a page for the latest reading and still appends every reading to the CSV. The program prints the address when the page is ready. Nothing is accepted from the network: the page is only on this computer. If the port is already in use, the program stops before it measures.
+
+```bash
+python -m spotread_logger --serve
+python -m spotread_logger --interval min --serve --port 8765 --output live.csv
+```
+
+Open the printed address, for example http://127.0.0.1:8080/. The spectrum fills the page. It is a smooth curve through the samples, and the area under it is colored by wavelength, violet through red. That color is a screen approximation of the wavelength, not another measurement. Under the chart are the values the reading actually contains: XYZ, Lab, the instrument, and the illuminant, CRI, TM-30, and density figures. A swatch shows an approximate color from XYZ. Reflectance keeps its lightness. A light reading is brightened so the hue stays visible.
+
+The time of the latest reading is a clock time and an age, and the age keeps moving while the page is open. New readings arrive over a WebSocket. The page keeps only the latest one. Refreshing, or opening the address again, shows that same reading. If the connection drops, the page tries again.
 
 ## License
 
@@ -69,7 +88,7 @@ Copyright 2026 Aleksandr Motsjonov. Licensed under [GPL-3.0](LICENSE).
 ## Develop
 
 ```bash
-pip install pytest ruff
+pip install aiohttp pytest ruff
 pytest
 ruff check spotread_logger tests
 ```

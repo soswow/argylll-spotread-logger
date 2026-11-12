@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from spotread_logger.cli import build_parser, parse_interval
+from spotread_logger.cli import build_parser, parse_interval, resolve_serve_port
 from spotread_logger.csv_log import CSV_COLUMNS, append_reading
 from spotread_logger.measurement_mode import parse_measurement_mode, with_optional_skip_calibration
 from spotread_logger.parse_reading import (
@@ -244,6 +244,26 @@ def test_rejects_an_unknown_mode_and_inserts_skip_calibration_ahead_of_a_logfile
         "-N",
         "capture.txt",
     ]
+
+
+def test_serve_port_defaults_and_rejects_a_port_without_the_page() -> None:
+    parser = build_parser()
+    assert parser.parse_args([]).serve is False
+    assert parser.parse_args(["--serve"]).port is None
+    assert parser.parse_args(["--serve", "--port", "9000"]).port == 9000
+    assert parser.parse_args(["--serve", "--port", "1"]).port == 1
+    assert parser.parse_args(["--serve", "--port", "65535"]).port == 65535
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--port", "nope"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--serve", "--port", "0"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--serve", "--port", "65536"])
+    assert resolve_serve_port(True, None) == 8080
+    assert resolve_serve_port(True, 9000) == 9000
+    assert resolve_serve_port(False, None) is None
+    with pytest.raises(ValueError, match="--port is only used with --serve"):
+        resolve_serve_port(False, 9000)
 
 
 def test_appends_a_header_once_without_the_raw_spotread_text(tmp_path: Path) -> None:
